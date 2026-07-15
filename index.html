@@ -6,21 +6,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/x-icon" href="gash.ico">
 <title>GASH - Galaxy's Developer Shell</title>
-<link rel="stylesheet" href="src/gash.css">
 </head>
 
 <body>
-<div id="console-output"></div>
-<div id="prompt">
-  <span id="prompt-label">GASH $ </span>
-  <input id="input-field" type="text" autocomplete="off" autocorrect="off" spellcheck="false" />
+<div id="tab-bar">
+  <button id="tab-add">+</button>
 </div>
+<div id="tab-panels"></div>
 <div id="status-bar"></div>
 
-<script src="src/core/filesystem.js"></script>
-<script src="src/core/commands.js"></script>
-<script src="src/core/editor.js"></script>
-<script src="src/gash.js"></script>
+<script type="module" src="/src/main.ts"></script>
 
 </body>
 

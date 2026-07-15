@@ -17,7 +17,110 @@ body {
   justify-content: flex-start;
 }
 
-#console-output {
+/* ─── TAB BAR ─────────────────────────────────────────────────── */
+
+#tab-bar {
+  display: flex;
+  align-items: center;
+  background: #111;
+  border-bottom: 1px solid #333;
+  padding: 0;
+  min-height: 32px;
+  max-height: 32px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#tab-bar::-webkit-scrollbar {
+  height: 3px;
+}
+
+#tab-bar::-webkit-scrollbar-thumb {
+  background: #444;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: #888;
+  border-right: 1px solid #333;
+  font-size: 13px;
+  white-space: nowrap;
+  user-select: none;
+  height: 32px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.tab.active {
+  background: #000;
+  color: #00ff00;
+  border-bottom: 2px solid #00ff00;
+}
+
+.tab:hover:not(.active) {
+  background: #1a1a1a;
+  color: #aaa;
+}
+
+.tab-name {
+  margin-right: 4px;
+}
+
+.tab-close {
+  font-size: 14px;
+  opacity: 0.4;
+  padding: 0 2px;
+  border-radius: 3px;
+  transition: opacity 0.15s;
+}
+
+.tab-close:hover {
+  opacity: 1;
+  color: #ff5959;
+  background: rgba(255, 89, 89, 0.15);
+}
+
+#tab-add {
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-right: 1px solid #333;
+  color: #888;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: 'Courier New', monospace;
+  height: 32px;
+  transition: color 0.15s;
+}
+
+#tab-add:hover {
+  color: #00ff00;
+}
+
+/* ─── TAB PANELS ──────────────────────────────────────────────── */
+
+#tab-panels {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-panel {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.tab-panel.active {
+  display: flex;
+}
+
+.tab-panel .console-output {
   overflow-y: auto;
   flex-grow: 1;
   width: 100%;
@@ -28,7 +131,7 @@ body {
   line-height: 1.6;
 }
 
-#prompt {
+.tab-panel .prompt {
   display: flex;
   align-items: center;
   padding: 5px 10px;
@@ -38,13 +141,13 @@ body {
   gap: 0;
 }
 
-#prompt-label {
+.tab-panel .prompt-label {
   color: #00ff00;
   white-space: pre;
   flex-shrink: 0;
 }
 
-#input-field {
+.tab-panel .input-field {
   background: transparent;
   border: none;
   outline: none;
@@ -58,10 +161,12 @@ body {
   line-height: 1.6;
 }
 
-#input-field::selection {
+.tab-panel .input-field::selection {
   background-color: #00ff00;
   color: black;
 }
+
+/* ─── OUTPUT CLASSES ──────────────────────────────────────────── */
 
 .prompt-gash {
   color: #00ff00;
@@ -93,6 +198,8 @@ body {
   50% { opacity: 0; }
 }
 
+/* ─── THEMES ──────────────────────────────────────────────────── */
+
 .theme-default {
   background-color: black;
   color: #00FF00;
@@ -103,13 +210,13 @@ body {
   color: black;
 }
 
-.theme-light #prompt-label,
+.theme-light .prompt-label,
 .theme-light .prompt-gash,
-.theme-light #input-field {
+.theme-light .input-field {
   color: #006600;
 }
 
-.theme-light #input-field {
+.theme-light .input-field {
   caret-color: #006600;
 }
 
@@ -118,13 +225,13 @@ body {
   color: #1E90FF;
 }
 
-.theme-blue #prompt-label,
+.theme-blue .prompt-label,
 .theme-blue .prompt-gash,
-.theme-blue #input-field {
+.theme-blue .input-field {
   color: #1E90FF;
 }
 
-.theme-blue #input-field {
+.theme-blue .input-field {
   caret-color: #1E90FF;
 }
 
@@ -133,13 +240,13 @@ body {
   color: #FF4500;
 }
 
-.theme-red #prompt-label,
+.theme-red .prompt-label,
 .theme-red .prompt-gash,
-.theme-red #input-field {
+.theme-red .input-field {
   color: #FF4500;
 }
 
-.theme-red #input-field {
+.theme-red .input-field {
   caret-color: #FF4500;
 }
 
@@ -148,13 +255,13 @@ body {
   color: #800080;
 }
 
-.theme-purple #prompt-label,
+.theme-purple .prompt-label,
 .theme-purple .prompt-gash,
-.theme-purple #input-field {
+.theme-purple .input-field {
   color: #800080;
 }
 
-.theme-purple #input-field {
+.theme-purple .input-field {
   caret-color: #800080;
 }
 
@@ -268,3 +375,40 @@ input:focus, button:focus, textarea:focus {
 .theme-green #editor-header { background: #040; color: #0f0; }
 .theme-green #editor-textarea { color: #0f0; }
 .theme-green #editor-textarea::selection { background: #0f0; color: #000; }
+
+/* ─── THEME OVERRIDES FOR TAB BAR ─────────────────────────────── */
+
+.theme-light #tab-bar { background: #ddd; border-bottom-color: #ccc; }
+.theme-light .tab { color: #666; border-right-color: #ccc; }
+.theme-light .tab.active { background: #f0f0f0; color: #006600; border-bottom-color: #006600; }
+.theme-light .tab:hover:not(.active) { background: #e8e8e8; color: #333; }
+.theme-light #tab-add { color: #666; border-right-color: #ccc; }
+.theme-light #tab-add:hover { color: #006600; }
+
+.theme-blue #tab-bar { background: #151515; border-bottom-color: #2a2a2a; }
+.theme-blue .tab { color: #555; border-right-color: #2a2a2a; }
+.theme-blue .tab.active { background: #1f1f1f; color: #1e90ff; border-bottom-color: #1e90ff; }
+.theme-blue .tab:hover:not(.active) { background: #222; color: #888; }
+.theme-blue #tab-add { color: #555; border-right-color: #2a2a2a; }
+.theme-blue #tab-add:hover { color: #1e90ff; }
+
+.theme-red #tab-bar { background: #151515; border-bottom-color: #2a2a2a; }
+.theme-red .tab { color: #555; border-right-color: #2a2a2a; }
+.theme-red .tab.active { background: #1f1f1f; color: #ff4500; border-bottom-color: #ff4500; }
+.theme-red .tab:hover:not(.active) { background: #222; color: #888; }
+.theme-red #tab-add { color: #555; border-right-color: #2a2a2a; }
+.theme-red #tab-add:hover { color: #ff4500; }
+
+.theme-purple #tab-bar { background: #151515; border-bottom-color: #2a2a2a; }
+.theme-purple .tab { color: #555; border-right-color: #2a2a2a; }
+.theme-purple .tab.active { background: #1f1f1f; color: #800080; border-bottom-color: #800080; }
+.theme-purple .tab:hover:not(.active) { background: #222; color: #888; }
+.theme-purple #tab-add { color: #555; border-right-color: #2a2a2a; }
+.theme-purple #tab-add:hover { color: #800080; }
+
+.theme-green #tab-bar { background: #010; border-bottom-color: #020; }
+.theme-green .tab { color: #336633; border-right-color: #020; }
+.theme-green .tab.active { background: #003300; color: #00ff00; border-bottom-color: #00ff00; }
+.theme-green .tab:hover:not(.active) { background: #002200; color: #00cc00; }
+.theme-green #tab-add { color: #336633; border-right-color: #020; }
+.theme-green #tab-add:hover { color: #00ff00; }
