@@ -1,8 +1,8 @@
 import './gash.css';
 import { VirtualFileSystem } from './core/filesystem';
-import { CommandRegistry } from './core/types';
+import { CommandRegistry, type Job } from './core/types';
 import { Editor } from './core/editor';
-import { registerAllCommands } from './core/commands';
+import { registerAllCommands, type GashRuntime } from './core/commands';
 import { createProcessCommand, createProcessCommandSync, expandVars } from './core/shell-parser';
 import {
   loadState, saveFunctions, savePackages,
@@ -14,11 +14,18 @@ const VERSION = '2.1.0';
 
 const reg = new CommandRegistry();
 const editor = new Editor();
-const tabManager = new TabManager(editor, VERSION);
+const jobs: Record<number, Job> = {};
+const runtime: GashRuntime = { jobs, version: VERSION, inputHook: null };
+const tabManager = new TabManager(
+  editor,
+  VERSION,
+  () => (runtime.inputHook ? (runtime.hookLabel || '>>> ') : null)
+);
 
 // ─── GLOBAL SHARED STATE ────────────────────────────────────────
 
 let fs: VirtualFileSystem | null = null;
+let currentUsername = 'gashuser';
 const aliases: Record<string, string> = {};
 const config = { theme: 'default', prompt: 'GASH' };
 const gashFunctions: Record<string, string[]> = {};
@@ -50,19 +57,22 @@ function getTabState(tab: TabState): any {
     history: tab.history,
     historyIndex: tab.history.length,
     socket: null,
-    waitingForFunction: null,
+    get waitingForFunction() { return tab.waitingForFunction; },
+    set waitingForFunction(v) { tab.waitingForFunction = v; },
     gashFunctions,
     gashPackages,
-    editorMode: false,
+    get editorMode() { return tab.editorMode; },
+    set editorMode(v: boolean) { tab.editorMode = v; },
     filteredHistory: [],
     historySearchMode: false,
     historySearchQuery: '',
-    jobs: {},
+    jobs,
     get nextJobId() { return globalNextJobId; },
     set nextJobId(v: number) { globalNextJobId = v; },
     hostname,
-    fs,
-    inputHook: null,
+    get fs() { return fs; },
+    get inputHook() { return tab.inputHook; },
+    set inputHook(v) { tab.inputHook = v; },
     editor,
     _cronTimers: cronTimers,
     _cronInterval: cronInterval,
@@ -94,8 +104,11 @@ function getTabState(tab: TabState): any {
       let result = '';
       const oldAddToConsole = state.addToConsole;
       state.addToConsole = (text: string) => { result += text.replace(/^> ?/gm, '') + '\n'; };
-      processCommandSyncFn(cmd);
-      state.addToConsole = oldAddToConsole;
+      try {
+        processCommandSyncFn(cmd);
+      } finally {
+        state.addToConsole = oldAddToConsole;
+      }
       return result.trim();
     } catch {
       return '';
@@ -128,7 +141,9 @@ function setupTabInput(tab: TabState): void {
       fs.cwd = tab.vars.PWD;
       fs.readdir(parent).then(entries => {
         fs!.cwd = savedCwd;
-        const fileMatches = entries.map(e => e.name).filter(name => name.startsWith(partial));
+        const fileMatches = entries
+          .filter(e => e.name.startsWith(partial))
+          .map(e => (parent === '/' ? '/' : parent + '/') + e.name + (e.type === 'directory' ? '/' : ''));
         if (fileMatches.length > 0) {
           showTabSuggestions(fileMatches);
         }
@@ -151,7 +166,9 @@ function setupTabInput(tab: TabState): void {
 
   function completeWith(completion: string): void {
     const words = inputEl.value.split(' ');
-    words[words.length - 1] = completion + ' ';
+    // directories complete with "/" and no trailing space, so the next
+    // word keeps resolving relative to that directory
+    words[words.length - 1] = completion + (completion.endsWith('/') ? '' : ' ');
     inputEl.value = words.join(' ');
     const len = inputEl.value.length;
     inputEl.setSelectionRange(len, len);
@@ -204,13 +221,14 @@ function setupTabInput(tab: TabState): void {
       return;
     }
 
-    if (tab.inputHook) {
+    const hook = tab.inputHook || runtime.inputHook;
+    if (hook) {
       if (key === 'Enter') {
         event.preventDefault();
         const val = inputEl.value.trim();
         inputEl.value = '';
         tabSuggestions = [];
-        if (val) await tab.inputHook(val);
+        if (val) await hook(val);
       }
       if (key === 'Escape') {
         event.preventDefault();
@@ -336,7 +354,6 @@ function setupTabInput(tab: TabState): void {
       event.preventDefault();
       const newTab = tabManager.createTab();
       tabManager.switchTab(newTab.id);
-      setupTabInput(newTab);
       return;
     }
 
@@ -354,13 +371,22 @@ function setupTabInput(tab: TabState): void {
   });
 }
 
+// ─── TAB LIFECYCLE WIRING ───────────────────────────────────────
+
+tabManager.setOnCreateCallback((tab: TabState) => {
+  tab.vars.USER = currentUsername;
+  tab.vars.HOME = '/home/' + currentUsername;
+  tab.vars.PWD = '/home/' + currentUsername;
+  setupTabInput(tab);
+});
+
+tabManager.setOnCloseCallback((tab: TabState) => {
+  tabStates.delete(tab.id);
+});
+
 // ─── REGISTER COMMANDS ──────────────────────────────────────────
 
-registerAllCommands(reg, {
-  jobs: {},
-  version: VERSION,
-  inputHook: null
-});
+registerAllCommands(reg, runtime);
 
 // ─── EDITOR CLOSE CALLBACK ──────────────────────────────────────
 
@@ -386,16 +412,14 @@ async function init() {
   try { needsSetup = !(await fs.exists('/etc/passwd')); }
   catch { needsSetup = true; }
 
-  let username = 'gashuser';
-
   if (needsSetup) {
-    username = prompt('Enter username:', 'gashuser') || 'gashuser';
+    currentUsername = prompt('Enter username:', 'gashuser') || 'gashuser';
     const rootPass = prompt('Set root password:', 'root') || 'root';
-    await fs.populateDefaultStructure(username, rootPass);
-    localStorage.setItem('gashUser', username);
+    await fs.populateDefaultStructure(currentUsername, rootPass);
+    localStorage.setItem('gashUser', currentUsername);
     localStorage.setItem('gashRootHash', btoa(rootPass));
   } else {
-    username = localStorage.getItem('gashUser') || 'gashuser';
+    currentUsername = localStorage.getItem('gashUser') || 'gashuser';
   }
 
   try {
@@ -411,22 +435,39 @@ async function init() {
     }
   } catch { /* /sys/bin not ready yet */ }
 
+  // the create callback seeds USER/HOME/PWD and wires the input handlers
   const firstTab = tabManager.createTab();
-  firstTab.vars.USER = username;
-  firstTab.vars.HOME = '/home/' + username;
-  fs.cwd = '/home/' + username;
-  firstTab.vars.PWD = '/home/' + username;
+
+  if (loaded.history && loaded.history.length) {
+    firstTab.history.push(...loaded.history.slice(-500));
+  }
+
+  fs.cwd = '/home/' + currentUsername;
 
   const tabState = getTabState(firstTab);
-  setupTabInput(firstTab);
+  tabState.historyIndex = firstTab.history.length;
 
-  const gashGlobal = {
+  let coreUpdatePrompt = () => {
+    const tab = tabManager.getActiveTab() || firstTab;
+    if (tab) tab._updatePrompt();
+  };
+
+  const gashGlobal: any = {
     register: reg.register.bind(reg),
     commands: reg.commands,
     commandCategories: reg.commandCategories,
-    addToConsole: firstTab.addToConsole,
     version: VERSION,
-    Editor
+    Editor,
+    get addToConsole() {
+      return (text: string, cls?: string) => {
+        const tab = tabManager.getActiveTab() || firstTab;
+        if (tab) tab.addToConsole(text, cls);
+      };
+    },
+    get inputHook() { return runtime.inputHook; },
+    set inputHook(v: ((line: string) => void | Promise<void>) | null) { runtime.inputHook = v; },
+    get _updatePrompt() { return coreUpdatePrompt; },
+    set _updatePrompt(v: () => void) { coreUpdatePrompt = v; }
   };
   (window as any).GASH = gashGlobal;
 

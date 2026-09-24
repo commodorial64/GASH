@@ -35,13 +35,16 @@ export class TabManager {
   private editor: Editor;
   private version: string;
   private onCloseCallback: ((tab: TabState) => void) | null = null;
+  private onCreateCallback: ((tab: TabState) => void) | null = null;
+  private getHookLabel: (() => string | null) | null = null;
 
-  constructor(editor: Editor, version: string) {
+  constructor(editor: Editor, version: string, getHookLabel?: () => string | null) {
     this.tabBar = document.getElementById('tab-bar')!;
     this.tabPanels = document.getElementById('tab-panels')!;
     this.tabAddBtn = document.getElementById('tab-add')!;
     this.editor = editor;
     this.version = version;
+    this.getHookLabel = getHookLabel || null;
 
     this.tabAddBtn.addEventListener('click', () => {
       const tab = this.createTab();
@@ -51,6 +54,10 @@ export class TabManager {
 
   setOnCloseCallback(cb: (tab: TabState) => void): void {
     this.onCloseCallback = cb;
+  }
+
+  setOnCreateCallback(cb: (tab: TabState) => void): void {
+    this.onCreateCallback = cb;
   }
 
   createTab(name?: string): TabState {
@@ -126,8 +133,12 @@ export class TabManager {
       inputEl,
       addToConsole: (text: string, cls?: string) => {
         if (text == null || text === '') return;
-        const clsAttr = cls ? ` class="${cls}"` : '';
-        consoleEl.innerHTML += `<div${clsAttr}><span class="prompt-gash">&gt; </span>${text}</div>`;
+        const clsAttr = cls ? ` class="${cls.replace(/[^\w-]/g, '')}"` : '';
+        const safe = String(text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        consoleEl.innerHTML += `<div${clsAttr}><span class="prompt-gash">&gt; </span>${safe}</div>`;
         consoleEl.scrollTop = consoleEl.scrollHeight;
       },
       _clearConsole: () => {
@@ -145,12 +156,17 @@ export class TabManager {
         } else if (tab.historySearchMode) {
           promptLabel.textContent = `(search) `;
         } else {
-          const cwd = tab.vars.PWD || '/';
-          const user = tab.vars.USER || 'gashuser';
-          const host = 'gashbox';
-          const home = tab.vars.HOME || '/home/' + user;
-          const display = cwd === home ? '~' : cwd;
-          promptLabel.textContent = `${user}@${host}:${display}$ `;
+          const runtimeLabel = this.getHookLabel ? this.getHookLabel() : null;
+          if (runtimeLabel) {
+            promptLabel.textContent = runtimeLabel;
+          } else {
+            const cwd = tab.vars.PWD || '/';
+            const user = tab.vars.USER || 'gashuser';
+            const host = 'gashbox';
+            const home = tab.vars.HOME || '/home/' + user;
+            const display = cwd === home ? '~' : cwd;
+            promptLabel.textContent = `${user}@${host}:${display}$ `;
+          }
         }
         if (inputEl && document.activeElement !== inputEl) {
           inputEl.focus();
@@ -173,6 +189,8 @@ export class TabManager {
       this.switchTab(id);
     }
 
+    if (this.onCreateCallback) this.onCreateCallback(tab);
+
     return tab;
   }
 
@@ -185,11 +203,16 @@ export class TabManager {
       currentTab.panel.classList.remove('active');
       const currentBtn = this.tabBar.querySelector(`.tab[data-tab-id="${currentTab.id}"]`);
       if (currentBtn) currentBtn.classList.remove('active');
+      // legacy element ids are claimed by the active tab only (packages look them up by id)
+      currentTab.promptLabel.removeAttribute('id');
+      currentTab.inputEl.removeAttribute('id');
     }
 
     tab.panel.classList.add('active');
     const newBtn = this.tabBar.querySelector(`.tab[data-tab-id="${tab.id}"]`);
     if (newBtn) newBtn.classList.add('active');
+    tab.promptLabel.id = 'prompt-label';
+    tab.inputEl.id = 'input-field';
 
     this.activeTabId = id;
     tab.inputEl.focus();

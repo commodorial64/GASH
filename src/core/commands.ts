@@ -6,6 +6,7 @@ export interface GashRuntime {
   jobs: Record<number, Job>;
   version: string;
   inputHook: ((line: string) => void | Promise<void>) | null;
+  hookLabel?: string;
 }
 
 const REGISTRY_URL = 'https://raw.githubusercontent.com/galaxyg144/GASH/main/packages/registry.json';
@@ -842,6 +843,7 @@ export function registerAllCommands(reg: CommandRegistry, runtime?: GashRuntime)
       if (!name) return '> error: usage: func create <name>';
       ctx.gashFunctions[name] = [];
       ctx.waitingForFunction = name;
+      ctx._updatePrompt();
       ctx.addToConsole(`> creating function "${name}"... type function code, end with "endfunc"`);
       return null;
     }
@@ -1159,6 +1161,18 @@ export function registerAllCommands(reg: CommandRegistry, runtime?: GashRuntime)
     return '> usage: pkg <install|run|list|remove|show|search|info|create>';
   }, HELP_PKG, 'pkg');
 
+  // ─── EDITOR ─────────────────────────────────────────────────────
+
+  reg.register('edit', async function (args: string[], ctx: GashContext): Promise<string | null> {
+    if (!args.length) return '> error: usage: edit <path>';
+    if (!ctx.editor) return '> error: editor not available';
+    const mode = args.includes('--visual') || args.includes('-v') ? 'visual' : 'line';
+    const out = await ctx.editor.open(args[0], ctx.fs, mode, ctx.config);
+    ctx.editorMode = true;
+    ctx._updatePrompt();
+    return out;
+  }, HELP_EDIT, 'edit');
+
   // ─── UTILITIES ───────────────────────────────────────────────────
 
   reg.register('echo', async function (args: string[]): Promise<string | null> {
@@ -1384,6 +1398,7 @@ export function registerAllCommands(reg: CommandRegistry, runtime?: GashRuntime)
     function cleanup() {
       if (R) {
         R.inputHook = null;
+        R.hookLabel = undefined;
       }
       ctx._updatePrompt();
     }
@@ -1403,11 +1418,10 @@ export function registerAllCommands(reg: CommandRegistry, runtime?: GashRuntime)
             ws.send(line + '\n');
           }
         };
+        R.hookLabel = 'ssh> ';
       }
 
-      const activePanel = document.querySelector('.tab-panel.active');
-      const pl = activePanel ? activePanel.querySelector('.prompt-label') : null;
-      if (pl) pl.textContent = 'ssh> ';
+      ctx._updatePrompt();
     });
 
     ws.addEventListener('message', (e: MessageEvent) => {

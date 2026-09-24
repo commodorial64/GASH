@@ -43,6 +43,8 @@ export interface GashContext {
   gashPackages: Record<string, PackageInfo>;
   waitingForFunction: string | { type: string; code: string } | null;
   pipeInput: string | null;
+  editor: any;
+  editorMode: boolean;
   addToConsole: (text: string, cls?: string) => void;
   processCommand: (input: string) => Promise<void>;
   processCommandSync: (input: string) => string;
